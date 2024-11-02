@@ -4,6 +4,7 @@ import android.provider.Settings.Global
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -13,6 +14,7 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.shareIn
@@ -22,8 +24,9 @@ import kotlinx.coroutines.launch
 class FlowViewModel: ViewModel(){
     //this is a cold flow
     //will work only when there are collectors
-    val flow = flow<DataState> {
+    val flow = flow {
         emit(DataState.Loading)
+        delay(3000)
         emit(DataState.Loaded(listOf("Movie 1", "Movie 2", "Movie 3")))
     }
     //Converts a cold flow to a StateFlow, replaying the latest value to new collectors.
@@ -62,10 +65,12 @@ class FlowViewModel: ViewModel(){
 }
 
 class FlowCollector(private val scope: CoroutineScope){
-    val viewModel = FlowViewModel()
+    private val log = FlowCollector::class.java.simpleName
+    private val dispatchers = DefaultDispatchers()
+    private val viewModel = FlowViewModel()
 
     fun wrongCollectFlow(){
-        scope.launch {
+        scope.launch(dispatchers.main) {
             /**
              * which will suspend indefinitely at the first collect and never reach the collectLatest statement.
              * Each collect function is a suspending function that continuously listens to emissions, so once you enter the first collect,
@@ -73,23 +78,25 @@ class FlowCollector(private val scope: CoroutineScope){
              */
             viewModel.flow.collect { dataState ->
                 // Handle each emission (e.g., update the UI)
+                println("$log: I will suspend indefinitely all functions below me")
             }
             viewModel.flow.collectLatest { dataState ->
                 // Handle only the latest emission, cancel previous if new value arrives
+                println("$log: I will never be printed")
             }
         }
     }
 
     fun collectStateFlow(){
         //will collect all emissions
-        scope.launch {
+        scope.launch(dispatchers.main) {
             viewModel.stateFlow.collectLatest { dataState ->
                 // Handle each emission (e.g., update the UI)
             }
         }
 
         //if there are any collisions it will collect only the latest emission and cancel the previous one
-        scope.launch {
+        scope.launch(dispatchers.main) {
             viewModel.stateFlow.collectLatest { dataState ->
                 // Handle only the latest emission, cancel previous if new value arrives
             }
@@ -102,14 +109,15 @@ class FlowCollector(private val scope: CoroutineScope){
      * collect is required to actually trigger the flow; without it, the flow won’t produce any values.
      * onEach is Intermediate operator used to perform side effects on each emitted item returns flow
      */
-    fun collectColdFlow(){
+    fun collectColdFlow() {
         viewModel.flow.onEach { dataState ->
+            println("$log: $dataState")
             // Handle each emission
         }.catch { e ->
             // Handle error (e.g., log or update UI state)
-        }.launchIn(scope) // Starts collecting in the scope
+        }.launchIn(scope)// Starts collecting in the scope
 
-        scope.launch {
+        scope.launch(dispatchers.main) {
             viewModel.flow.collect{ dataState ->
                 // Handle only the latest emission, cancel previous if new value arrives
             }

@@ -56,4 +56,10 @@ dependencies {
     androidTestImplementation(libs.androidx.ui.test.junit4)
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
+    //makes flows testing easier
+    testImplementation("app.cash.turbine:turbine:0.7.0")
+    //advanced assertions
+    testImplementation("com.google.truth:truth:1.1.3")
+    //coroutines testing
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.5.2")
 }
