@@ -10,6 +10,8 @@ import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.supervisorScope
@@ -74,7 +76,14 @@ class CoroutinesViewModel: ViewModel() {
     fun runBlockingExample() = runBlocking {
         println("Running runBlocking on the main thread")
     }
-
+    // Example flow with a simple producer
+    fun exampleFlow(): Flow<Int> = flow {
+        emit(1)
+        delay(500)
+        emit(2)
+        delay(500)
+        emit(3)
+    }
     // Lazy start of a coroutine
     fun lazyCoroutine() {
         val job = CoroutineScope(Dispatchers.Default).launch(start = CoroutineStart.LAZY) {
