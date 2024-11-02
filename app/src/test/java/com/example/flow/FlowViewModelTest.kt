@@ -1,7 +1,11 @@
 package com.example.flow
 
+import androidx.lifecycle.viewModelScope
 import app.cash.turbine.test
 import com.google.common.truth.Truth.assertThat
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
@@ -50,5 +54,14 @@ class FlowViewModelTest {
         viewModel.updateSharedFlow()
         job.join()
         job.cancel()
+    }
+
+    @Test
+    fun combineFlows(){
+        GlobalScope.launch {
+            val flow1 = flowOf(1, 2, 3)
+            val flow2 = flowOf("a", "b", "c")
+            flow1.combine(flow2) { num, str -> "$num$str" }.collect { println(it) }
+        }
     }
 }
