@@ -64,11 +64,13 @@ class CoroutinesViewModel: ViewModel() {
     }
 
     // Run multiple async coroutines concurrently
+    //and await the result of both before returning
     suspend fun concurrentAsyncExample(): Int {
         return coroutineScope {
             val deferredOne = async { delay(300); 20 }
             val deferredTwo = async { delay(300); 22 }
-            deferredOne.await() + deferredTwo.await()
+            val sum =  deferredOne.await() + deferredTwo.await()
+            sum
         }
     }
 

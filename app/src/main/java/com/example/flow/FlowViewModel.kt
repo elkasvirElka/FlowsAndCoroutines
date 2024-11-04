@@ -1,6 +1,6 @@
 package com.example.flow
 
-import android.provider.Settings.Global
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.CoroutineScope
@@ -11,37 +11,41 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
-import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-class FlowViewModel: ViewModel(){
+class FlowViewModel : ViewModel() {
+
     //this is a cold flow
     //will work only when there are collectors
-    val flow = flow {
+    val flow = flow<DataState> {
         emit(DataState.Loading)
-        delay(3000)
+        delay(500)
         emit(DataState.Loaded(listOf("Movie 1", "Movie 2", "Movie 3")))
     }
+
     //Converts a cold flow to a StateFlow, replaying the latest value to new collectors.
     // Useful when you want to create a shared state that can be observed by multiple collectors.
     val state = flow.stateIn(viewModelScope, SharingStarted.Lazily, DataState.Loading)
+
     // Convert a cold flow to a hot flow, sharing the emissions with multiple collectors.
     // Ideal for creating shared broadcasts of cold flows to multiple collectors
     val shared = flow.shareIn(viewModelScope, SharingStarted.WhileSubscribed(), replay = 1)
+
     //this is a hot flow
     //will work even if there are no collectors
     // StateFlow always replays the latest value to any new collectors, making it a great choice when you need the current state available at all times.
-    private val _stateFlow = MutableStateFlow<DataState>(DataState.Loading)
+    private val _stateFlow = MutableStateFlow<DataState>(DataState.Error("not initialized"))
     val stateFlow = _stateFlow.asStateFlow() // this is immutable flow
 
-    fun updateStateFlow() {
+    suspend fun updateStateFlow() {
+        _stateFlow.value = DataState.Loading
+        delay(100)
         _stateFlow.value = DataState.Loaded(listOf("Movie 1", "Movie 2", "Movie 3"))
     }
 
@@ -52,7 +56,9 @@ class FlowViewModel: ViewModel(){
     val sharedFlow = _sharedFlow.asSharedFlow() // this is immutable flow
 
     fun updateSharedFlow() {
-        _sharedFlow.tryEmit(DataState.Loaded(listOf("Movie 1", "Movie 2", "Movie 3")))
+        viewModelScope.launch {
+            _sharedFlow.emit(DataState.Loaded(listOf("Movie 1", "Movie 2", "Movie 3")))
+        }
     }
 
     /**
@@ -64,13 +70,14 @@ class FlowViewModel: ViewModel(){
      */
 }
 
-class FlowCollector(private val scope: CoroutineScope){
+class FlowCollector(private val scope: CoroutineScope) {
+
     private val log = FlowCollector::class.java.simpleName
-    private val dispatchers = DefaultDispatchers()
+   // private val dispatchers = DefaultDispatchers()
     private val viewModel = FlowViewModel()
 
-    fun wrongCollectFlow(){
-        scope.launch(dispatchers.main) {
+    fun wrongCollectFlow() {
+        scope.launch {
             /**
              * which will suspend indefinitely at the first collect and never reach the collectLatest statement.
              * Each collect function is a suspending function that continuously listens to emissions, so once you enter the first collect,
@@ -87,22 +94,22 @@ class FlowCollector(private val scope: CoroutineScope){
         }
     }
 
-    fun collectStateFlow(){
+    fun collectStateFlow() {
         //will collect all emissions
-        scope.launch(dispatchers.main) {
+        scope.launch {
             viewModel.stateFlow.collectLatest { dataState ->
                 // Handle each emission (e.g., update the UI)
             }
         }
 
         //if there are any collisions it will collect only the latest emission and cancel the previous one
-        scope.launch(dispatchers.main) {
+        scope.launch {
             viewModel.stateFlow.collectLatest { dataState ->
                 // Handle only the latest emission, cancel previous if new value arrives
             }
+            viewModel.updateStateFlow()
         }
 
-        viewModel.updateStateFlow()
     }
 
     /**
@@ -117,10 +124,19 @@ class FlowCollector(private val scope: CoroutineScope){
             // Handle error (e.g., log or update UI state)
         }.launchIn(scope)// Starts collecting in the scope
 
-        scope.launch(dispatchers.main) {
-            viewModel.flow.collect{ dataState ->
+        scope.launch {
+            viewModel.flow.collect { dataState ->
                 // Handle only the latest emission, cancel previous if new value arrives
             }
         }
+    }
+
+    fun collectSharedFlow() {
+        scope.launch {
+            viewModel.sharedFlow.collect {
+                Log.d(log, "state: $it")
+            }
+        }
+        viewModel.updateSharedFlow()
     }
 }
